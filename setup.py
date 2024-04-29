@@ -48,11 +48,7 @@ def git_version(gitdir, default="0.0.0"):
 
 # in the case of a tagged release, we
 # are passed a version in an env var
-VERSION = os.environ.get(
-    "CIRRUS_VERSION",
-    git_version(os.path.join(HERE, ".git")),
-)
-
+VERSION = os.environ.get("CIRRUS_VERSION", "0.15.0")
 
 with open(os.path.join(HERE, "README.md"), encoding="utf-8") as f:
     readme = f.read()
