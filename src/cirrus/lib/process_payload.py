@@ -222,13 +222,10 @@ class ProcessPayload(dict):
         state_machine_arn, _, execution_name = execution_arn.rpartition(":")
         url = f"s3://{payload_bucket}/{self['id']}/input.json"
 
-        # start workflow
+        # claim workflow
 
-        # add input payload to s3
-        s3().upload_json(self, url)
-
-        # create DynamoDB record
         try:
+            # create or update DynamoDB record
             # -> overwrites states other than PROCESSING and CLAIMED
             wfem.claim_processing(
                 self["id"],
@@ -257,6 +254,12 @@ class ProcessPayload(dict):
                 return None
             self._fail_and_raise(wfem, e, url)
 
+        try:
+            # add input payload to s3
+            s3().upload_json(self, url)
+        except Exception as e:  # noqa: BLE001
+            self._fail_and_raise(wfem, e, url)
+
         # invoke step function
         self.logger.debug("Running Step Function %s", execution_arn)
         started_sfn = False
@@ -280,7 +283,6 @@ class ProcessPayload(dict):
             # Let ExecutionAlreadyExists pass, to try setting PROCESSING
 
         try:
-            # add execution to DynamoDB record
             wfem.started_processing(
                 self["id"],
                 execution_arn=execution_arn,
@@ -296,7 +298,10 @@ class ProcessPayload(dict):
                     message=(
                         "started stepfunction, but could not set processing "
                         if started_sfn
-                        else "could not set processing "
+                        else (
+                            "stepfunction started by another process, "
+                            "and database already updated "
+                        )
                     )
                     + f"({db_state}).",
                 )
